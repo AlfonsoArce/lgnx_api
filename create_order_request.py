@@ -14,6 +14,7 @@ import requests
 from dotenv import load_dotenv
 
 URL = "https://api.loginextsolutions.com/BookingApp/middlemile/v1/create"
+LOG_PATH = "create_order_request.log"
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -128,11 +129,25 @@ def main() -> int:
 
     response = requests.post(URL, headers=headers, json=PAYLOAD, timeout=30)
 
-    print(f"HTTP {response.status_code}")
     try:
-        print(json.dumps(response.json(), indent=2))
+        body = response.json()
+        body_text = json.dumps(body, indent=2)
     except ValueError:
-        print(response.text)
+        body = None
+        body_text = response.text
+
+    print(f"HTTP {response.status_code}")
+    print(body_text)
+
+    first = (body or {}).get("data", [{}])[0] if isinstance(body, dict) else {}
+    log_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "status_code": response.status_code,
+        "shipmentRequestReferenceId": first.get("shipmentRequestReferenceId"),
+        "shipmentRequestNo": first.get("shipmentRequestNo", SHIPMENT_REQUEST_NO),
+    }
+    with open(LOG_PATH, "a") as f:
+        f.write(json.dumps(log_entry) + "\n")
 
     return 0 if response.ok else 2
 
