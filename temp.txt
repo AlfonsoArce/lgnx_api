@@ -1,0 +1,26 @@
+(lgnx-api) aarce@AM-AARCE-M1 lgnx_api % uv run python create_order_request.py
+HTTP 200
+{
+  "status": 200,
+  "message": "Shipment Request(s) created successfully",
+  "moreResultsExists": false,
+  "data": [
+    {
+      "index": 0,
+      "shipmentRequestReferenceId": "8755dd68ecc4441fb1124149a8c8c6e7",
+      "shipmentRequestNo": "Test-1778934411",
+      "shipmentRequestType": "DELIVER"
+    }
+  ],
+  "hasError": false
+}
+
+(lgnx-api) aarce@AM-AARCE-M1 lgnx_api % uv run python get_order_status.py 8755dd68ecc4441fb1124149a8c8c6e7
+HTTP 200
+{
+  "status": 200,
+  "message": "Success",
+  "moreResultsExists": false,
+  "data": [],
+  "hasError": false
+}
