@@ -1,6 +1,12 @@
 # macOS
 .DS_Store
 
+# file types
+*.pdf
+
+# Local only
+/references
+
 # Editors / IDEs
 .vscode/
 .idea/
@@ -11,5 +17,4 @@
 .env.*
 !.env.example
 
-# Local-only reference material (third-party docs, etc.)
-references/
+
