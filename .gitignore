@@ -22,4 +22,7 @@
 __pycache__/
 *.pyc
 
+# Local exports
+/exports/
+
 
