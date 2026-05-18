@@ -1,14 +1,39 @@
-"""GET customer details from LogiNext ClientApp/customer/v1/get/list.
+"""Fetch customer details from LogiNext ClientApp/customer/v1/get/list.
 
-Mirrors references/LGNX_API/loginext_mile_apis/01_customer.md. Set
-LGNX_AUTH_TOKEN in .env (the value after `BASIC ` in the curl's
-www-authenticate header).
+What this script does
+---------------------
+Given one or more customer identifiers (``accountCode`` or
+``referenceId``), this script calls the LogiNext "Get Customer" endpoint,
+pretty-prints the JSON response, and exports the returned customer
+records to an Excel workbook under the ``exports/`` directory.
 
-Accepts customer account codes or reference IDs (up to 20 per call) and
-exports the resulting customer details to an Excel file under exports/.
+Up to ``MAX_IDS_PER_CALL`` (20) ids may be passed in a single invocation
+to match the API's documented per-call limit.
 
-Usage:
+API reference
+-------------
+Mirrors ``references/LGNX_API/loginext_mile_apis/01_customer.md``.
+
+Authentication
+--------------
+Reads ``LGNX_AUTH_TOKEN`` from ``.env`` (the value after ``BASIC `` in
+the upstream curl's ``www-authenticate`` header). The script re-prepends
+``BASIC `` when constructing the request header.
+
+Usage
+-----
     uv run python get_customer.py <id> [<id> ...] [--out path.xlsx]
+
+Examples
+--------
+    uv run python get_customer.py cust-1715814123
+    uv run python get_customer.py CUST-A CUST-B --out exports/my_customers.xlsx
+
+Exit codes
+----------
+    0 -- success (records exported or no records found).
+    1 -- configuration error (missing token, too many ids passed in).
+    2 -- HTTP error or non-JSON response from the API.
 """
 
 import argparse
@@ -22,12 +47,18 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+# Where Excel exports are written when ``--out`` is not provided.
 EXPORTS_DIR = Path(__file__).parent / "exports"
 
+# Documented v1 "get customer by list of ids" endpoint.
 URL = "https://api.loginextsolutions.com/ClientApp/customer/v1/get/list"
 
+# LogiNext caps this endpoint at 20 ids per call -- enforce client-side to
+# avoid a confusing 400 from the server.
 MAX_IDS_PER_CALL = 20
 
+# Browser-style user-agent -- LogiNext's edge sometimes rejects the default
+# ``python-requests`` user-agent during WAF checks.
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
@@ -35,6 +66,33 @@ USER_AGENT = (
 
 
 def main() -> int:
+    """Run the get-customer command-line flow.
+
+    Steps performed
+    ---------------
+    1. Parse CLI arguments (positional ids and optional ``--out``).
+    2. Load ``LGNX_AUTH_TOKEN`` from ``.env`` and verify it is present.
+    3. Reject the call early if more than ``MAX_IDS_PER_CALL`` ids were
+       passed (the API would reject the batch).
+    4. Build the request headers and issue a GET with ``ids`` joined as a
+       comma-separated query parameter.
+    5. Pretty-print the response body. Bail out with exit code 2 if the
+       body is not JSON or the status is non-2xx.
+    6. Extract the ``data`` array (the list of customer records). If it
+       is empty, skip the Excel export and return 0.
+    7. Resolve the output path -- explicit ``--out`` value or an
+       auto-generated timestamped file under ``exports/``.
+    8. Flatten the nested JSON into a DataFrame with
+       ``pandas.json_normalize`` and write to ``.xlsx``.
+
+    Returns
+    -------
+    int
+        Process exit code (see module docstring for the meaning of each
+        value).
+    """
+    # Step 1: parse CLI arguments. ``__doc__`` is reused as the help banner
+    # so ``--help`` mirrors this module's docstring.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "ids",
@@ -48,12 +106,15 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Step 2: load credentials and abort if the token is missing.
     load_dotenv()
     token = os.environ.get("LGNX_AUTH_TOKEN")
     if not token:
         print("error: LGNX_AUTH_TOKEN is missing (set it in .env)", file=sys.stderr)
         return 1
 
+    # Step 3: enforce the documented per-call cap client-side so the user
+    # gets a clear local error rather than a generic 400.
     if len(args.ids) > MAX_IDS_PER_CALL:
         print(
             f"error: this API accepts up to {MAX_IDS_PER_CALL} ids per call "
@@ -62,11 +123,13 @@ def main() -> int:
         )
         return 1
 
+    # Step 4: build headers and send the GET. Ids are passed as a
+    # comma-separated string under the ``ids`` query parameter, matching
+    # the curl example in the reference docs.
     headers = {
         "user-agent": USER_AGENT,
         "www-authenticate": f"BASIC {token}",
     }
-
     response = requests.get(
         URL,
         headers=headers,
@@ -74,6 +137,8 @@ def main() -> int:
         timeout=30,
     )
 
+    # Step 5: surface status, then parse JSON. Non-JSON responses are
+    # printed as raw text and treated as a hard failure.
     print(f"HTTP {response.status_code}")
     try:
         body = response.json()
@@ -86,19 +151,29 @@ def main() -> int:
     if not response.ok:
         return 2
 
+    # Step 6: extract the customer records. The LogiNext convention is
+    # ``{"data": [...records...], ...}``. Bail out gracefully if no
+    # records were returned -- no Excel file is created.
     customers = body.get("data") if isinstance(body, dict) else None
     if not customers:
         print("no customer records returned; skipping Excel export", file=sys.stderr)
         return 0
 
+    # Step 7: resolve the output path. If the user passed ``--out`` we
+    # honor it verbatim; otherwise we synthesize a timestamped filename
+    # under ``exports/`` so each run is uniquely identifiable.
     if args.out:
         out_path = Path(args.out)
     else:
         EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         out_path = EXPORTS_DIR / f"customer_{stamp}.xlsx"
+    # Ensure the parent directory exists for user-supplied paths too.
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Step 8: flatten nested JSON (e.g. ``billingAddress.city``) into a
+    # tabular form and write to Excel. ``index=False`` drops the synthetic
+    # RangeIndex column.
     df = pd.json_normalize(customers)
     df.to_excel(out_path, index=False, sheet_name="customers")
 
