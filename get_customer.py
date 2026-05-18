@@ -5,7 +5,7 @@ What this script does
 Given one or more customer identifiers (``accountCode`` or
 ``referenceId``), this script calls the LogiNext "Get Customer" endpoint,
 pretty-prints the JSON response, and exports the returned customer
-records to an Excel workbook under the ``exports/`` directory.
+records to an Excel workbook under the ``output/`` directory.
 
 Up to ``MAX_IDS_PER_CALL`` (20) ids may be passed in a single invocation
 to match the API's documented per-call limit.
@@ -27,7 +27,7 @@ Usage
 Examples
 --------
     uv run python get_customer.py cust-1715814123
-    uv run python get_customer.py CUST-A CUST-B --out exports/my_customers.xlsx
+    uv run python get_customer.py CUST-A CUST-B --out output/my_customers.xlsx
 
 Exit codes
 ----------
@@ -48,7 +48,7 @@ import requests
 from dotenv import load_dotenv
 
 # Where Excel exports are written when ``--out`` is not provided.
-EXPORTS_DIR = Path(__file__).parent / "exports"
+OUTPUT_DIR = Path(__file__).parent / "output"
 
 # Documented v1 "get customer by list of ids" endpoint.
 URL = "https://api.loginextsolutions.com/ClientApp/customer/v1/get/list"
@@ -81,7 +81,7 @@ def main() -> int:
     6. Extract the ``data`` array (the list of customer records). If it
        is empty, skip the Excel export and return 0.
     7. Resolve the output path -- explicit ``--out`` value or an
-       auto-generated timestamped file under ``exports/``.
+       auto-generated timestamped file under ``output/``.
     8. Flatten the nested JSON into a DataFrame with
        ``pandas.json_normalize`` and write to ``.xlsx``.
 
@@ -102,7 +102,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         default=None,
-        help="output Excel file path (default: exports/customer_<UTC-timestamp>.xlsx)",
+        help="output Excel file path (default: output/customer_<UTC-timestamp>.xlsx)",
     )
     args = parser.parse_args()
 
@@ -161,13 +161,13 @@ def main() -> int:
 
     # Step 7: resolve the output path. If the user passed ``--out`` we
     # honor it verbatim; otherwise we synthesize a timestamped filename
-    # under ``exports/`` so each run is uniquely identifiable.
+    # under ``output/`` so each run is uniquely identifiable.
     if args.out:
         out_path = Path(args.out)
     else:
-        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out_path = EXPORTS_DIR / f"customer_{stamp}.xlsx"
+        out_path = OUTPUT_DIR / f"customer_{stamp}.xlsx"
     # Ensure the parent directory exists for user-supplied paths too.
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

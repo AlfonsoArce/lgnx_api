@@ -5,7 +5,7 @@ What this script does
 Walks the LogiNext "client node" (address) list endpoint page by page,
 accumulates every record returned, normalizes the nested JSON into a
 flat tabular form, and writes the result to an Excel workbook under
-``exports/``.
+``output/``.
 
 Pagination strategy
 -------------------
@@ -36,7 +36,7 @@ Mirrors ``references/curls/fetch_address_list.sh``.
 Usage
 -----
     uv run python fetch_address_list.py \\
-        [--page-size 50] [--delay 1.0] [--out exports/addresses.xlsx]
+        [--page-size 50] [--delay 1.0] [--out output/addresses.xlsx]
 
 Exit codes
 ----------
@@ -58,7 +58,7 @@ import requests
 from dotenv import load_dotenv
 
 # Default location for Excel exports when ``--out`` is not provided.
-EXPORTS_DIR = Path(__file__).parent / "exports"
+OUTPUT_DIR = Path(__file__).parent / "output"
 
 # NOTE: this endpoint lives on the ``products.loginextsolutions.com`` host
 # (not the ``api.`` host used by other endpoints in this repo). The path
@@ -209,7 +209,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         default=None,
-        help="output Excel file path (default: exports/addresses_<UTC-timestamp>.xlsx)",
+        help="output Excel file path (default: output/addresses_<UTC-timestamp>.xlsx)",
     )
     args = parser.parse_args()
 
@@ -228,9 +228,9 @@ def main() -> int:
     if args.out:
         out_path = Path(args.out)
     else:
-        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out_path = EXPORTS_DIR / f"addresses_{stamp}.xlsx"
+        out_path = OUTPUT_DIR / f"addresses_{stamp}.xlsx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Step 5: flatten nested JSON (e.g. ``location.lat``) and write.

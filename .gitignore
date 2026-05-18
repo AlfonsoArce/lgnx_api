@@ -6,6 +6,7 @@
 
 # Local only
 /references
+/tmp
 
 # Editors / IDEs
 .vscode/
@@ -22,7 +23,7 @@
 __pycache__/
 *.pyc
 
-# Local exports
-/exports/
+# Local output
+/output/
 
 

@@ -4,7 +4,7 @@ What this script does
 ---------------------
 Walks the LogiNext "shipper list" endpoint page by page, collects every
 record returned, normalizes the nested JSON into a flat tabular form,
-and writes the result to an Excel workbook under ``exports/``.
+and writes the result to an Excel workbook under ``output/``.
 
 The output file is the typical input for
 ``fetch_subclientid_config.py --from-xlsx ...``, which pulls the full
@@ -41,7 +41,7 @@ Mirrors ``references/curls/fetch_shipper_list.sh``.
 Usage
 -----
     uv run python fetch_shipper_list.py \\
-        [--page-size 50] [--delay 1.0] [--out exports/shippers.xlsx]
+        [--page-size 50] [--delay 1.0] [--out output/shippers.xlsx]
 
 Exit codes
 ----------
@@ -63,7 +63,7 @@ import requests
 from dotenv import load_dotenv
 
 # Default output directory for Excel exports.
-EXPORTS_DIR = Path(__file__).parent / "exports"
+OUTPUT_DIR = Path(__file__).parent / "output"
 
 # NOTE: shipper endpoints live on ``products.loginextsolutions.com``
 # (not ``api.``). Confirmed via the reference curl.
@@ -204,7 +204,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         default=None,
-        help="output Excel file path (default: exports/shippers_list_<UTC-timestamp>.xlsx)",
+        help="output Excel file path (default: output/shippers_list_<UTC-timestamp>.xlsx)",
     )
     args = parser.parse_args()
 
@@ -222,9 +222,9 @@ def main() -> int:
     if args.out:
         out_path = Path(args.out)
     else:
-        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out_path = EXPORTS_DIR / f"shippers_list_{stamp}.xlsx"
+        out_path = OUTPUT_DIR / f"shippers_list_{stamp}.xlsx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Step 5: flatten and write.

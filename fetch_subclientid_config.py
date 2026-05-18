@@ -11,7 +11,7 @@ Two modes
 ---------
 1. **Ad-hoc mode** -- pass one or more ``subClientId`` values as
    positional arguments. The combined response is saved as a JSON file
-   under ``exports/`` (or wherever ``--out`` points). When exactly one
+   under ``output/`` (or wherever ``--out`` points). When exactly one
    id is provided the file contains that id's body directly; with more
    than one the file is keyed by id.
 
@@ -52,7 +52,7 @@ Usage
 
     # Fetch every shipper from a shippers list xlsx (writes Excel):
     uv run python fetch_subclientid_config.py \\
-        --from-xlsx exports/shippers_list_*.xlsx \\
+        --from-xlsx output/shippers_list_*.xlsx \\
         [--delay 0.5] [--out path.xlsx]
 
 Exit codes
@@ -76,7 +76,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 # Default output directory for both JSON and Excel exports.
-EXPORTS_DIR = Path(__file__).parent / "exports"
+OUTPUT_DIR = Path(__file__).parent / "output"
 
 # Documented endpoint for "get shipper configuration by subClientId".
 URL = "https://products.loginextsolutions.com/ClientApp/shipper/getbysubclientid"
@@ -290,7 +290,7 @@ def main() -> int:
     2. Validate the flag combination (exactly one of positional ids or
        ``--from-xlsx`` must be supplied).
     3. Load ``.env`` and verify ``LGNX_AUTH_TOKEN``.
-    4. Prepare the exports directory and a shared UTC timestamp.
+    4. Prepare the output directory and a shared UTC timestamp.
     5a. Bulk mode (``--from-xlsx``): drive ``fetch_all_from_xlsx`` and
         write the resulting DataFrame to Excel. Return 2 if any rows
         had errors, else 0.
@@ -332,7 +332,7 @@ def main() -> int:
         "--out",
         default=None,
         help="output path. JSON for ID args, Excel for --from-xlsx "
-        "(default: exports/<prefix>_<UTC-timestamp>.<ext>)",
+        "(default: output/<prefix>_<UTC-timestamp>.<ext>)",
     )
     args = parser.parse_args()
 
@@ -350,14 +350,14 @@ def main() -> int:
         print("error: LGNX_AUTH_TOKEN is missing (set it in .env)", file=sys.stderr)
         return 1
 
-    # Step 4: prepare exports dir + a shared timestamp for output names.
-    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    # Step 4: prepare output dir + a shared timestamp for output names.
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     # Step 5a: bulk mode -- iterate every shipper in the source xlsx.
     if args.from_xlsx:
         df = fetch_all_from_xlsx(token, Path(args.from_xlsx), args.delay, args.id_column)
-        out_path = Path(args.out) if args.out else EXPORTS_DIR / f"shippers_{stamp}.xlsx"
+        out_path = Path(args.out) if args.out else OUTPUT_DIR / f"shippers_{stamp}.xlsx"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_excel(out_path, index=False, sheet_name="shippers")
         print(f"wrote {len(df)} shipper configs ({len(df.columns)} columns) to {out_path}")
@@ -386,7 +386,7 @@ def main() -> int:
     # we unwrap the map so the file *is* the response body (handier when
     # piping into ``jq`` downstream); for multiple ids we keep the map
     # so each id's body is addressable by key.
-    out_path = Path(args.out) if args.out else EXPORTS_DIR / f"subclient_config_{stamp}.json"
+    out_path = Path(args.out) if args.out else OUTPUT_DIR / f"subclient_config_{stamp}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = results[args.subclient_ids[0]] if len(args.subclient_ids) == 1 else results
     with out_path.open("w", encoding="utf-8") as fh:

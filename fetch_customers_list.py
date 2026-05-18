@@ -4,7 +4,7 @@ What this script does
 ---------------------
 Walks the LogiNext "customer list" endpoint page by page, collects every
 record returned, normalizes the nested JSON into a flat tabular form,
-and writes the result to an Excel workbook under ``exports/``.
+and writes the result to an Excel workbook under ``output/``.
 
 Comparison to ``get_customer.py``
 ---------------------------------
@@ -42,7 +42,7 @@ Mirrors ``references/curls/fetch_customers_list.sh``.
 Usage
 -----
     uv run python fetch_customers_list.py \\
-        [--page-size 50] [--delay 1.0] [--out exports/customers.xlsx]
+        [--page-size 50] [--delay 1.0] [--out output/customers.xlsx]
 
 Exit codes
 ----------
@@ -64,7 +64,7 @@ import requests
 from dotenv import load_dotenv
 
 # Default location for Excel exports.
-EXPORTS_DIR = Path(__file__).parent / "exports"
+OUTPUT_DIR = Path(__file__).parent / "output"
 
 # NOTE: the customer-list endpoint lives on ``products.loginextsolutions.com``
 # (not ``api.``). Confirmed via the reference curl.
@@ -207,7 +207,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         default=None,
-        help="output Excel file path (default: exports/customers_list_<UTC-timestamp>.xlsx)",
+        help="output Excel file path (default: output/customers_list_<UTC-timestamp>.xlsx)",
     )
     args = parser.parse_args()
 
@@ -226,9 +226,9 @@ def main() -> int:
     if args.out:
         out_path = Path(args.out)
     else:
-        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out_path = EXPORTS_DIR / f"customers_list_{stamp}.xlsx"
+        out_path = OUTPUT_DIR / f"customers_list_{stamp}.xlsx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Step 5: flatten nested JSON (e.g. ``billingAddress.city``) and write.
